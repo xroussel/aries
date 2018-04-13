@@ -65,7 +65,7 @@ public class EnableAnnotationTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
-        ClassFinder classFinder = new ClassFinder(EnableAnnotationTest.class.getClassLoader());
+        PackageScopeClassFinder classFinder = new PackageScopeClassFinder(EnableAnnotationTest.class.getClassLoader());
         beanClasses = findClasses(classFinder, Arrays.asList(
                 TxBean.class.getPackage().getName()));
     }

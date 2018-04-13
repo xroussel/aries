@@ -22,34 +22,75 @@ import org.apache.aries.blueprint.plugin.handlers.Handlers;
 import org.apache.xbean.finder.ClassFinder;
 
 import java.lang.annotation.Annotation;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 class FilteredClassFinder {
 
     @SuppressWarnings("unchecked")
-    static Set<Class<?>> findClasses(ClassFinder finder, Collection<String> packageNames) {
+    static Set<Class<?>> findClasses(PackageScopeClassFinder finder, Collection<String> packageNames) {
         return findClasses(finder, packageNames, Handlers.BEAN_MARKING_ANNOTATION_CLASSES.toArray(new Class[Handlers.BEAN_MARKING_ANNOTATION_CLASSES.size()]));
     }
 
-    private static Set<Class<?>> findClasses(ClassFinder finder, Collection<String> packageNames, Class<? extends Annotation>[] annotations) {
-        Set<Class<?>> rawClasses = new HashSet<Class<?>>();
-        for (Class<? extends Annotation> annotation : annotations) {
-            rawClasses.addAll(finder.findAnnotatedClasses(annotation));
-        }
-        return filterByBasePackages(rawClasses, packageNames);
+    private static Set<Class<?>> findClasses(PackageScopeClassFinder finder, Collection<String> packageNames, Class<? extends Annotation>[] annotations) {
+        return new HashSet<>(finder.findAnnotatedClassesFromBasePackages(annotations, packageNames));
     }
-    
-    private static Set<Class<?>> filterByBasePackages(Set<Class<?>> rawClasses, Collection<String> packageNames) {
-        Set<Class<?>> filteredClasses = new HashSet<Class<?>>();
-        for (Class<?> clazz : rawClasses) {
-            for (String packageName : packageNames) {
-                if (clazz.getPackage().getName().startsWith(packageName)) {
-                    filteredClasses.add(clazz);
+
+}
+
+class PackageScopeClassFinder extends ClassFinder {
+    PackageScopeClassFinder(ClassLoader classLoader, Collection<URL> urls) {
+        super(classLoader, urls);
+    }
+
+    PackageScopeClassFinder(ClassLoader classLoader) throws Exception {
+        super(classLoader);
+    }
+
+    List<Class<?>> findAnnotatedClassesFromBasePackages(Class<? extends Annotation>[] annotations, Collection<String> packageNames) {
+        List<Class<?>> classes = new ArrayList<Class<?>>();
+        Set<Info> toCheck = new HashSet<>();
+        for (Class<? extends Annotation> annotation : annotations) {
+            toCheck.addAll(getAnnotationInfos(annotation.getName()));
+        }
+        for (Info info : toCheck) {
+            if (info instanceof ClassInfo) {
+                ClassInfo classInfo = (ClassInfo) info;
+                if (classFromBasePackage(classInfo, packageNames)) {
+                    try {
+                        Class clazz = classInfo.get();
+                        if (classHasAtLeastOneAnnotation(clazz, annotations)) {
+                            classes.add(clazz);
+                        }
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException("Class not found", e);
+                    }
                 }
             }
         }
-        return filteredClasses;
+        return classes;
+    }
+
+    private boolean classHasAtLeastOneAnnotation(Class clazz, Class<? extends Annotation>[] annotations) {
+        for (Class<? extends Annotation> annotation : annotations) {
+            if (clazz.isAnnotationPresent(annotation)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean classFromBasePackage(ClassInfo classInfo, Collection<String> packageNames) {
+        for (String packageName : packageNames) {
+            if (classInfo.getPackageName().startsWith(packageName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
+

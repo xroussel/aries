@@ -32,7 +32,6 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
-import org.apache.xbean.finder.ClassFinder;
 import org.sonatype.plexus.build.incremental.BuildContext;
 
 import java.io.File;
@@ -138,10 +137,18 @@ public class GenerateMojo extends AbstractMojo {
     }
 
     private void generateBlueprint(List<String> toScan, BlueprintConfigurationImpl blueprintConfiguration) throws Exception {
-        ClassFinder classFinder = createProjectScopeFinder();
+        long startTime = System.currentTimeMillis();
+        PackageScopeClassFinder classFinder = createProjectScopeFinder();
+        getLog().debug("Creating package scope class finder: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         Set<Class<?>> classes = FilteredClassFinder.findClasses(classFinder, toScan);
+        getLog().debug("Finding bean classes: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         Blueprint blueprint = new Blueprint(blueprintConfiguration, classes);
+        getLog().debug("Creating blueprint model: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         writeBlueprintIfNeeded(blueprint);
+        getLog().debug("Writing blueprint: " + (System.currentTimeMillis() - startTime) + "ms");
     }
 
     private void writeBlueprintIfNeeded(Blueprint blueprint) throws Exception {
@@ -169,7 +176,7 @@ public class GenerateMojo extends AbstractMojo {
         fos.close();
     }
 
-    private ClassFinder createProjectScopeFinder() throws MalformedURLException {
+    private PackageScopeClassFinder createProjectScopeFinder() throws MalformedURLException {
         List<URL> urls = new ArrayList<>();
 
         urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
@@ -181,7 +188,7 @@ public class GenerateMojo extends AbstractMojo {
             }
         }
         ClassLoader loader = new URLClassLoader(urls.toArray(new URL[urls.size()]), getClass().getClassLoader());
-        return new ClassFinder(loader, urls);
+        return new PackageScopeClassFinder(loader, urls);
     }
 
     private List<String> getPackagesToScan() throws MojoExecutionException {

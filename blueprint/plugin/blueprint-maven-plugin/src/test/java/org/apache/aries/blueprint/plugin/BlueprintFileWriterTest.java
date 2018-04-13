@@ -84,7 +84,7 @@ public class BlueprintFileWriterTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
-        ClassFinder classFinder = new ClassFinder(BlueprintFileWriterTest.class.getClassLoader());
+        PackageScopeClassFinder classFinder = new PackageScopeClassFinder(BlueprintFileWriterTest.class.getClassLoader());
         long start = System.currentTimeMillis();
         Set<Class<?>> beanClasses = findClasses(classFinder, Arrays.asList(
                 MyBean1.class.getPackage().getName(),
