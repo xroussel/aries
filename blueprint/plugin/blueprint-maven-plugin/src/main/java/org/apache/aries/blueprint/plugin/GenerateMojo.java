@@ -42,9 +42,11 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Generates blueprint from CDI annotations
@@ -118,6 +120,12 @@ public class GenerateMojo extends AbstractMojo {
     @Parameter
     protected Map<String, String> customParameters;
 
+    /**
+     * Which artifacts should be excluded from finding beans process
+     */
+    @Parameter
+    private Set<String> excludeArtifacts = new HashSet<>();
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         List<String> toScan = getPackagesToScan();
@@ -138,10 +146,18 @@ public class GenerateMojo extends AbstractMojo {
     }
 
     private void generateBlueprint(List<String> toScan, BlueprintConfigurationImpl blueprintConfiguration) throws Exception {
+        long startTime = System.currentTimeMillis();
         ClassFinder classFinder = createProjectScopeFinder();
+        getLog().debug("Creating package scope class finder: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         Set<Class<?>> classes = FilteredClassFinder.findClasses(classFinder, toScan);
+        getLog().debug("Finding bean classes: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         Blueprint blueprint = new Blueprint(blueprintConfiguration, classes);
+        getLog().debug("Creating blueprint model: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         writeBlueprintIfNeeded(blueprint);
+        getLog().debug("Writing blueprint: " + (System.currentTimeMillis() - startTime) + "ms");
     }
 
     private void writeBlueprintIfNeeded(Blueprint blueprint) throws Exception {
@@ -172,16 +188,37 @@ public class GenerateMojo extends AbstractMojo {
     private ClassFinder createProjectScopeFinder() throws MalformedURLException {
         List<URL> urls = new ArrayList<>();
 
+        long startTime = System.currentTimeMillis();
         urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
+
+        Set<Pattern> excludeArtifactPatterns = new HashSet<>();
+        for (String excludeArtifact : excludeArtifacts) {
+            excludeArtifactPatterns.add(Pattern.compile(excludeArtifact));
+        }
+
+        outer:
         for (Object artifactO : project.getArtifacts()) {
             Artifact artifact = (Artifact) artifactO;
+            for (Pattern excludePattern : excludeArtifactPatterns) {
+                if (excludePattern.matcher(artifact.toString()).matches()) {
+                    getLog().debug("Excluded " + artifact);
+                    continue outer;
+                }
+            }
+            getLog().debug("Taken jar " + artifact);
             File file = artifact.getFile();
             if (file != null) {
                 urls.add(file.toURI().toURL());
             }
         }
+        getLog().debug(" Finding artifacts urls: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
         ClassLoader loader = new URLClassLoader(urls.toArray(new URL[urls.size()]), getClass().getClassLoader());
-        return new ClassFinder(loader, urls);
+        getLog().debug(" Create class loader: " + (System.currentTimeMillis() - startTime) + "ms");
+        startTime = System.currentTimeMillis();
+        ClassFinder classFinder = new ClassFinder(loader, urls);
+        getLog().debug(" Building class finder: " + (System.currentTimeMillis() - startTime) + "ms");
+        return classFinder;
     }
 
     private List<String> getPackagesToScan() throws MojoExecutionException {
