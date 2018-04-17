@@ -33,13 +33,14 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.apache.xbean.finder.ClassFinder;
+import org.codehaus.plexus.classworlds.ClassWorld;
+import org.codehaus.plexus.classworlds.realm.ClassRealm;
 import org.sonatype.plexus.build.incremental.BuildContext;
 
 import java.io.File;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -190,7 +191,17 @@ public class GenerateMojo extends AbstractMojo {
 
         long startTime = System.currentTimeMillis();
         urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
+        ClassRealm crlm = new ClassRealm(new ClassWorld(), "mbpcl", getClass().getClassLoader()) ;
+        crlm.addURL(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
 
+        for(Object artifact0 : project.getArtifacts()){
+        	Artifact artifact = (Artifact) artifact0;
+        	File file = artifact.getFile();
+            if (file != null) {
+            	crlm.addURL(file.toURI().toURL());
+            }
+        }
+        
         Set<Pattern> excludeArtifactPatterns = new HashSet<>();
         for (String excludeArtifact : excludeArtifacts) {
             excludeArtifactPatterns.add(Pattern.compile(excludeArtifact));
@@ -211,12 +222,12 @@ public class GenerateMojo extends AbstractMojo {
                 urls.add(file.toURI().toURL());
             }
         }
+        
         getLog().debug(" Finding artifacts urls: " + (System.currentTimeMillis() - startTime) + "ms");
         startTime = System.currentTimeMillis();
-        ClassLoader loader = new URLClassLoader(urls.toArray(new URL[urls.size()]), getClass().getClassLoader());
         getLog().debug(" Create class loader: " + (System.currentTimeMillis() - startTime) + "ms");
         startTime = System.currentTimeMillis();
-        ClassFinder classFinder = new ClassFinder(loader, urls);
+        ClassFinder classFinder = new ClassFinder(crlm, urls);
         getLog().debug(" Building class finder: " + (System.currentTimeMillis() - startTime) + "ms");
         return classFinder;
     }
