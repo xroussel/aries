@@ -211,7 +211,7 @@ public class GenerateMojo extends AbstractMojo {
         for (Object artifactO : project.getArtifacts()) {
             Artifact artifact = (Artifact) artifactO;
             for (Pattern excludePattern : excludeArtifactPatterns) {
-                if (excludePattern.matcher(artifact.toString()).matches()) {
+                if (excludePattern.matcher(artifact.toString()).matches() && !artifact.getGroupId().equals(project.getGroupId())) {
                     getLog().debug("Excluded " + artifact);
                     continue outer;
                 }
